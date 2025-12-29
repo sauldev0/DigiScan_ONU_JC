@@ -2,7 +2,11 @@ package com.example.digiscan_onu_jc
 
 import android.Manifest
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.widget.FrameLayout
 import android.widget.FrameLayout.LayoutParams
 import android.widget.Toast
@@ -64,10 +68,6 @@ class MainActivity : ComponentActivity() {
 
         cameraExecutor = Executors.newSingleThreadExecutor()
         barcodeScanner = BarcodeScanning.getClient()
-
-
-
-
 
         setContent {
             DigiScan_ONU_JCTheme {
@@ -170,8 +170,8 @@ class MainActivity : ComponentActivity() {
             val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
             barcodeScanner.process(image)
                 .addOnSuccessListener { barcodes ->
-                    for (barcode in barcodes){
-                        handleBarcode(onBarcodeDetected, barcode)
+                    for (barcode in barcodes) {
+                        handleBarcode(onBarcodeDetected, barcode, this@MainActivity)
                     }
                 }
                 .addOnFailureListener {
@@ -183,12 +183,65 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun handleBarcode(onBarcodeDetected: (String) -> Unit, barcode: Barcode){
-        val barcodeText = barcode.url?.url ?: barcode.displayValue
-        if (barcodeText != null){
-            onBarcodeDetected(barcodeText)
+    private fun handleBarcode(onUIUpdate: (String) -> Unit, barcode: Barcode, context: Context) {
+        if (estaBloqueado) return
+        val valor = barcode.rawValue ?: return
+
+        when {
+            // Filtro MAC
+            valor.matches(MAC_REGEX) -> {
+                val tieneLetras = valor.any { it.isLetter() }
+                val tieneSeparadores = valor.contains(":") || valor.contains("-") || valor.contains(".")
+                if (tieneLetras || tieneSeparadores) macDetectada = valor
+            }
+            // Filtro PON SN
+            valor.matches(PON_SN_REGEX) -> {
+                ponDetectada = valor
+            }
+        }
+
+        // Si ya tenemos ambos, disparamos el éxito
+        if (macDetectada != null && ponDetectada != null) {
+            finalizarCaptura(onUIUpdate, context)
         } else {
-            onBarcodeDetected("No se detecto codigo")
+            // Actualizamos la UI con los "checks" parciales
+            val statusMac = if (macDetectada != null) "✅ MAC OK" else "🔍 Buscando MAC..."
+            val statusPon = if (ponDetectada != null) "✅ PON OK" else "🔍 Buscando PON SN..."
+            onUIUpdate("$statusMac\n$statusPon")
+        }
+    }
+
+    private fun finalizarCaptura(onUIUpdate: (String) -> Unit, context: Context) {
+        if (estaBloqueado) return
+        estaBloqueado = true
+        vibrar(context)
+
+        onUIUpdate("✅ EQUIPO COMPLETO\nMAC: $macDetectada\nPON: $ponDetectada")
+
+        // Esperar 5 segundos y reiniciar
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            macDetectada = null
+            ponDetectada = null
+            estaBloqueado = false
+            onUIUpdate("🔍 Escaneando siguiente equipo...")
+        }, 5000)
+    }
+
+
+    private fun vibrar(context: Context) {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(200)
         }
     }
 
