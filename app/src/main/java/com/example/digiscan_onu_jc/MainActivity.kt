@@ -20,11 +20,15 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -42,12 +46,22 @@ import java.util.concurrent.Executors
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.example.leer_escribir_compose_googlesheets.BaseUrl
+import com.example.leer_escribir_compose_googlesheets.Constantes
+import com.example.leer_escribir_compose_googlesheets.ONUData
+import com.example.leer_escribir_compose_googlesheets.RetrofitClient
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 
 class MainActivity : ComponentActivity() {
 
@@ -87,6 +101,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun BarcodeScannerScreen(innerPadding: PaddingValues) {
         var scanResult by remember { mutableStateOf("Escanea un codigo") }
+
         val context = LocalContext.current
 
         val requestPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -216,9 +231,16 @@ class MainActivity : ComponentActivity() {
         estaBloqueado = true
         vibrar(context)
 
-        onUIUpdate("✅ EQUIPO COMPLETO\nMAC: $macDetectada\nPON: $ponDetectada")
+        // Mensaje de enviando
+        onUIUpdate("✅ Datos capturados\nEnviando a Google Sheets...")
 
-        // Esperar 5 segundos y reiniciar
+        // Lógica de envío
+        agregarData(numero = "Scan", mac = macDetectada ?: "", serial = ponDetectada ?: "") {
+            // Este bloque se ejecuta solo cuando el envío fue exitoso
+            onUIUpdate("✅ ENVIADO EXITOSAMENTE\nMAC: $macDetectada\nPON: $ponDetectada")
+        }
+
+        // Reiniciamos el escáner después de 5 segundos
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             macDetectada = null
             ponDetectada = null
@@ -245,9 +267,58 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun agregarData(numero: String, mac: String, serial: String, onComplete: () -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            // Estructura de columnas según Google Sheet
+            val row = listOf("", numero, "", mac, "", serial, "")
+
+            val onuData = ONUData(
+                spreadsheet_id = Constantes.google_sheet_id,
+                sheet = Constantes.sheet,
+                rows = listOf(row)
+            )
+
+            val response = RetrofitClient.webService(BaseUrl.base_url_post).agregarONU(onuData)
+
+            if (response.isSuccessful) {
+                withContext(Dispatchers.Main) {
+                    onComplete()
+                }
+            }
+        }
+    }
 
 
+}
 
 
+// preview simulacion
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun BarcodeScannerPreview() {
+    DigiScan_ONU_JCTheme {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(16.dp)
+                    .background(Color.Black, RoundedCornerShape(16.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Cámara Activa", color = Color.White)
+            }
+
+            Text(
+                modifier = Modifier.padding(16.dp),
+                text = "✅ MAC: 00:1A:2B:3C:4D:5E\n🔍 Buscando PON SN...",
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+    }
 }
 
