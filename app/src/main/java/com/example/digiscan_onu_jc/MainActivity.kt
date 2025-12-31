@@ -15,7 +15,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -82,6 +84,8 @@ class MainActivity : ComponentActivity() {
     private var estaBloqueado = false
 
 
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -111,7 +115,7 @@ class MainActivity : ComponentActivity() {
 
         val requestPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted){
-                startCamera(context, { result -> scanResult = result })
+                startCamera(context, { result -> scanResult = result },{ newList -> listaONU = newList })
             } else {
                 scanResult = "Permisos de camara necesarios"
             }
@@ -184,7 +188,7 @@ class MainActivity : ComponentActivity() {
 
     }
 
-    private fun startCamera(context: Context, onBarcodeDetected: (String) -> Unit){
+    private fun startCamera(context: Context, onBarcodeDetected: (String) -> Unit, onRefreshList: (List<ONU>) -> Unit){
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
@@ -200,7 +204,7 @@ class MainActivity : ComponentActivity() {
                     .build()
                     .also {
                         it.setAnalyzer(cameraExecutor, { imageProxy ->
-                            processImageProxy(onBarcodeDetected, imageProxy)
+                            processImageProxy(onBarcodeDetected, imageProxy, onRefreshList)
                         })
                     }
                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -212,7 +216,8 @@ class MainActivity : ComponentActivity() {
 
     }
 
-    private fun processImageProxy(onBarcodeDetected: (String) -> Unit, imageProxy: ImageProxy){
+    @OptIn(ExperimentalGetImage::class)
+    private fun processImageProxy(onBarcodeDetected: (String) -> Unit, imageProxy: ImageProxy, onRefreshList: (List<ONU>) -> Unit){
 
         val mediaImage = imageProxy.image
 
@@ -221,7 +226,7 @@ class MainActivity : ComponentActivity() {
             barcodeScanner.process(image)
                 .addOnSuccessListener { barcodes ->
                     for (barcode in barcodes) {
-                        handleBarcode(onBarcodeDetected, barcode, this@MainActivity)
+                        handleBarcode(onBarcodeDetected, barcode, this@MainActivity, onRefreshList)
                     }
                 }
                 .addOnFailureListener {
@@ -233,7 +238,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun handleBarcode(onUIUpdate: (String) -> Unit, barcode: Barcode, context: Context) {
+    private fun handleBarcode(onUIUpdate: (String) -> Unit, barcode: Barcode, context: Context, onRefreshList: (List<ONU>) -> Unit) {
         if (estaBloqueado) return
         val valor = barcode.rawValue ?: return
 
@@ -252,7 +257,7 @@ class MainActivity : ComponentActivity() {
 
         // Si ya tenemos ambos, disparamos el éxito
         if (macDetectada != null && ponDetectada != null) {
-            finalizarCaptura(onUIUpdate, context)
+            finalizarCaptura(onUIUpdate, context, onRefreshList)
         } else {
             // Actualizamos la UI con los "checks" parciales
             val statusMac = if (macDetectada != null) "✅ MAC OK" else "🔍 Buscando MAC..."
@@ -261,7 +266,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun finalizarCaptura(onUIUpdate: (String) -> Unit, context: Context) {
+    private fun finalizarCaptura(onUIUpdate: (String) -> Unit, context: Context, onRefreshList: (List<ONU>) -> Unit) {
         if (estaBloqueado) return
         estaBloqueado = true
         vibrar(context)
@@ -272,6 +277,7 @@ class MainActivity : ComponentActivity() {
         // Lógica de envío
         agregarData(numero = "Scan", mac = macDetectada ?: "", serial = ponDetectada ?: "") {
             obtenerData { newList ->
+                onRefreshList(newList)
                 onUIUpdate("✅ ENVIADO EXITOSAMENTE\nMAC: $macDetectada\nPON: $ponDetectada")
             }
         }
