@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
     private var ponDetectada: String? = null
     private var estaBloqueado = false
 
-
+    private val NUMERO_INICIAL = 2000
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -115,7 +115,7 @@ class MainActivity : ComponentActivity() {
 
         val requestPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted){
-                startCamera(context, { result -> scanResult = result },{ newList -> listaONU = newList })
+                startCamera(context, { result -> scanResult = result },{ newList -> listaONU = newList }, { listaONU })
             } else {
                 scanResult = "Permisos de camara necesarios"
             }
@@ -188,7 +188,7 @@ class MainActivity : ComponentActivity() {
 
     }
 
-    private fun startCamera(context: Context, onBarcodeDetected: (String) -> Unit, onRefreshList: (List<ONU>) -> Unit){
+    private fun startCamera(context: Context, onBarcodeDetected: (String) -> Unit, onRefreshList: (List<ONU>) -> Unit, obtenerListaActual: () -> List<ONU>){
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
@@ -204,7 +204,7 @@ class MainActivity : ComponentActivity() {
                     .build()
                     .also {
                         it.setAnalyzer(cameraExecutor, { imageProxy ->
-                            processImageProxy(onBarcodeDetected, imageProxy, onRefreshList)
+                            processImageProxy(onBarcodeDetected, imageProxy, onRefreshList, obtenerListaActual())
                         })
                     }
                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -217,7 +217,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @OptIn(ExperimentalGetImage::class)
-    private fun processImageProxy(onBarcodeDetected: (String) -> Unit, imageProxy: ImageProxy, onRefreshList: (List<ONU>) -> Unit){
+    private fun processImageProxy(onBarcodeDetected: (String) -> Unit, imageProxy: ImageProxy, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>){
 
         val mediaImage = imageProxy.image
 
@@ -226,7 +226,7 @@ class MainActivity : ComponentActivity() {
             barcodeScanner.process(image)
                 .addOnSuccessListener { barcodes ->
                     for (barcode in barcodes) {
-                        handleBarcode(onBarcodeDetected, barcode, this@MainActivity, onRefreshList)
+                        handleBarcode(onBarcodeDetected, barcode, this@MainActivity, onRefreshList, listaActual)
                     }
                 }
                 .addOnFailureListener {
@@ -238,7 +238,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun handleBarcode(onUIUpdate: (String) -> Unit, barcode: Barcode, context: Context, onRefreshList: (List<ONU>) -> Unit) {
+    private fun handleBarcode(onUIUpdate: (String) -> Unit, barcode: Barcode, context: Context, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>) {
         if (estaBloqueado) return
         val valor = barcode.rawValue ?: return
 
@@ -257,7 +257,7 @@ class MainActivity : ComponentActivity() {
 
         // Si ya tenemos ambos, disparamos el éxito
         if (macDetectada != null && ponDetectada != null) {
-            finalizarCaptura(onUIUpdate, context, onRefreshList)
+            finalizarCaptura(onUIUpdate, context, onRefreshList, listaActual)
         } else {
             // Actualizamos la UI con los "checks" parciales
             val statusMac = if (macDetectada != null) "✅ MAC OK" else "🔍 Buscando MAC..."
@@ -266,19 +266,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun finalizarCaptura(onUIUpdate: (String) -> Unit, context: Context, onRefreshList: (List<ONU>) -> Unit) {
+    private fun finalizarCaptura(onUIUpdate: (String) -> Unit, context: Context, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>) {
         if (estaBloqueado) return
         estaBloqueado = true
         vibrar(context)
 
+        val proximoNumero = calcularSiguienteNumero(listaActual)
+
         // Mensaje de enviando
-        onUIUpdate("✅ Datos capturados\nEnviando a Google Sheets...")
+        onUIUpdate("✅ Capturado equipo N°$proximoNumero\nEnviando a Google Sheets...")
 
         // Lógica de envío
-        agregarData(numero = "Scan", mac = macDetectada ?: "", serial = ponDetectada ?: "") {
+        agregarData(numero = proximoNumero, mac = macDetectada ?: "", serial = ponDetectada ?: "") {
             obtenerData { newList ->
                 onRefreshList(newList)
-                onUIUpdate("✅ ENVIADO EXITOSAMENTE\nMAC: $macDetectada\nPON: $ponDetectada")
+                onUIUpdate("✅ ENVIADO EXITOSAMENTE\nN°: $proximoNumero\nMAC: $macDetectada\nPON: $ponDetectada")
             }
         }
 
@@ -343,6 +345,19 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 // En caso de error de red, podrías mostrar un Toast
             }
+        }
+    }
+
+    private fun calcularSiguienteNumero(lista: List<ONU>): String {
+        if (lista.isEmpty()) return NUMERO_INICIAL.toString()
+
+        // convertir el campo 'numero' a entero para encontrar el máximo
+        val ultimoNumero = lista.mapNotNull { it.numero?.toIntOrNull() }.maxOrNull()
+
+        return if (ultimoNumero != null) {
+            (ultimoNumero + 1).toString()
+        } else {
+            NUMERO_INICIAL.toString()
         }
     }
 
