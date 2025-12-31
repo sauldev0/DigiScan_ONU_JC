@@ -28,7 +28,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -53,6 +57,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.example.leer_escribir_compose_googlesheets.BaseUrl
 import com.example.leer_escribir_compose_googlesheets.Constantes
+import com.example.leer_escribir_compose_googlesheets.ONU
 import com.example.leer_escribir_compose_googlesheets.ONUData
 import com.example.leer_escribir_compose_googlesheets.RetrofitClient
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -101,7 +106,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun BarcodeScannerScreen(innerPadding: PaddingValues) {
         var scanResult by remember { mutableStateOf("Escanea un codigo") }
-
+        var listaONU by remember { mutableStateOf(emptyList<ONU>()) }
         val context = LocalContext.current
 
         val requestPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -114,6 +119,9 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(true) {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+            obtenerData { newList ->
+                listaONU = newList
+            }
         }
 
 
@@ -121,13 +129,13 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             AndroidView(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
+                    .fillMaxWidth()
+                    .weight(0.4f),
                 factory = {context ->
                     PreviewView(context).apply{
                         previewView = this
@@ -144,6 +152,33 @@ class MainActivity : ComponentActivity() {
                 style = MaterialTheme.typography.bodyLarge
 
             )
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.6f)
+                    .padding(8.dp)
+            ) {
+                items(listaONU.reversed()){item ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(8.dp)
+
+                        ) {
+                            Text(text = "N°: ${item.numero}")
+                            Text(text = "MAC: ${item.mac}")
+                            Text(text = "SERIAL: ${item.serial}")
+                        }
+                    }
+                }
+
+            }
 
         }
 
@@ -236,8 +271,9 @@ class MainActivity : ComponentActivity() {
 
         // Lógica de envío
         agregarData(numero = "Scan", mac = macDetectada ?: "", serial = ponDetectada ?: "") {
-            // Este bloque se ejecuta solo cuando el envío fue exitoso
-            onUIUpdate("✅ ENVIADO EXITOSAMENTE\nMAC: $macDetectada\nPON: $ponDetectada")
+            obtenerData { newList ->
+                onUIUpdate("✅ ENVIADO EXITOSAMENTE\nMAC: $macDetectada\nPON: $ponDetectada")
+            }
         }
 
         // Reiniciamos el escáner después de 5 segundos
@@ -288,8 +324,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun obtenerData(onDataReceived: (List<ONU>) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = RetrofitClient.webService(BaseUrl.base_url_get).obtenerTodoOnu()
+
+                if (response.isSuccessful) {
+                    withContext(Dispatchers.Main) {
+                        onDataReceived(response.body()?.databaseonu ?: emptyList())
+                    }
+                }
+            } catch (e: Exception) {
+                // En caso de error de red, podrías mostrar un Toast
+            }
+        }
+    }
+
 
 }
+
+
 
 
 // preview simulacion
