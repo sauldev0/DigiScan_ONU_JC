@@ -68,6 +68,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -130,15 +131,24 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(true) {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA)
 
-            // Bucle infinito que se ejecuta mientras la pantalla esté activa
+            // CARGA INICIAL INMEDIATA
+            estaSincronizando = true
+            obtenerData { newList ->
+                listaONU = newList
+                cargandoDatos = false // Desbloquea la interfaz rápido
+                estaSincronizando = false
+            }
+
+            // BUCLE DE ACTUALIZACIÓN (Polling)
             while (true){
+                delay(30000) // Espera 30 segundos antes de volver a consultar
                 estaSincronizando = true // Inicia parpadeo
                 obtenerData { newList ->
                     listaONU = newList
                     cargandoDatos = false // Ya tenemos los datos, liberamos el escaneo
                     estaSincronizando = false
             }
-                kotlinx.coroutines.delay(30000) // Espera 30 segundos antes de volver a consultar
+
             }
         }
 
