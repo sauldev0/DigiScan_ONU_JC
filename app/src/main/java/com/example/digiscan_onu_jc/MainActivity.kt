@@ -111,11 +111,13 @@ class MainActivity : ComponentActivity() {
     fun BarcodeScannerScreen(innerPadding: PaddingValues) {
         var scanResult by remember { mutableStateOf("Escanea un codigo") }
         var listaONU by remember { mutableStateOf(emptyList<ONU>()) }
+
+        var cargandoDatos by remember { mutableStateOf(true) }
         val context = LocalContext.current
 
         val requestPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted){
-                startCamera(context, { result -> scanResult = result },{ newList -> listaONU = newList }, { listaONU })
+                startCamera(context, { result -> scanResult = result },{ newList -> listaONU = newList }, {listaONU}, { cargandoDatos })
             } else {
                 scanResult = "Permisos de camara necesarios"
             }
@@ -125,6 +127,7 @@ class MainActivity : ComponentActivity() {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA)
             obtenerData { newList ->
                 listaONU = newList
+                cargandoDatos = false // Ya tenemos los datos, liberamos el escaneo
             }
         }
 
@@ -185,10 +188,25 @@ class MainActivity : ComponentActivity() {
             }
 
         }
+        if (cargandoDatos) {
+            Text(
+                text = "⏳ Sincronizando con Google Sheets...",
+                color = Color.Red,
+                modifier = Modifier.padding(8.dp),
+                style = MaterialTheme.typography.labelLarge
+            )
+        } else {
+            Text(
+                text = "✅ Sistema Listo - Siguiente N°: ${calcularSiguienteNumero(listaONU)}",
+                color = Color(0xFF4CAF50), // Verde
+                modifier = Modifier.padding(8.dp),
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
 
     }
 
-    private fun startCamera(context: Context, onBarcodeDetected: (String) -> Unit, onRefreshList: (List<ONU>) -> Unit, obtenerListaActual: () -> List<ONU>){
+    private fun startCamera(context: Context, onBarcodeDetected: (String) -> Unit, onRefreshList: (List<ONU>) -> Unit, obtenerListaActual: () -> List<ONU>, obtenerCargando: () -> Boolean){
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
@@ -204,7 +222,7 @@ class MainActivity : ComponentActivity() {
                     .build()
                     .also {
                         it.setAnalyzer(cameraExecutor, { imageProxy ->
-                            processImageProxy(onBarcodeDetected, imageProxy, onRefreshList, obtenerListaActual())
+                            processImageProxy(onBarcodeDetected, imageProxy, onRefreshList, obtenerListaActual(), obtenerCargando())
                         })
                     }
                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -217,7 +235,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @OptIn(ExperimentalGetImage::class)
-    private fun processImageProxy(onBarcodeDetected: (String) -> Unit, imageProxy: ImageProxy, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>){
+    private fun processImageProxy(onBarcodeDetected: (String) -> Unit, imageProxy: ImageProxy, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>, cargandoDatos: Boolean){
 
         val mediaImage = imageProxy.image
 
@@ -226,7 +244,7 @@ class MainActivity : ComponentActivity() {
             barcodeScanner.process(image)
                 .addOnSuccessListener { barcodes ->
                     for (barcode in barcodes) {
-                        handleBarcode(onBarcodeDetected, barcode, this@MainActivity, onRefreshList, listaActual)
+                        handleBarcode(onBarcodeDetected, barcode, this@MainActivity, onRefreshList, listaActual, cargandoDatos)
                     }
                 }
                 .addOnFailureListener {
@@ -238,8 +256,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun handleBarcode(onUIUpdate: (String) -> Unit, barcode: Barcode, context: Context, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>) {
-        if (estaBloqueado) return
+    private fun handleBarcode(onUIUpdate: (String) -> Unit, barcode: Barcode, context: Context, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>, cargandoDatos: Boolean) {
+        if (estaBloqueado || listaActual.isEmpty() && cargandoDatos) return
         val valor = barcode.rawValue ?: return
 
         when {
@@ -348,7 +366,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun calcularSiguienteNumero(lista: List<ONU>): String {
+    private fun calcularSiguienteNumero(lista: List<ONU>): String { 
         if (lista.isEmpty()) return NUMERO_INICIAL.toString()
 
         // convertir el campo 'numero' a entero para encontrar el máximo
