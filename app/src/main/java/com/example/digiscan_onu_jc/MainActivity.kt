@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -113,6 +115,8 @@ class MainActivity : ComponentActivity() {
         var listaONU by remember { mutableStateOf(emptyList<ONU>()) }
 
         var cargandoDatos by remember { mutableStateOf(true) }
+        var estaSincronizando by remember { mutableStateOf(false) } // Para el efecto visual
+
         val context = LocalContext.current
 
         val requestPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -125,9 +129,16 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(true) {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA)
-            obtenerData { newList ->
-                listaONU = newList
-                cargandoDatos = false // Ya tenemos los datos, liberamos el escaneo
+
+            // Bucle infinito que se ejecuta mientras la pantalla esté activa
+            while (true){
+                estaSincronizando = true // Inicia parpadeo
+                obtenerData { newList ->
+                    listaONU = newList
+                    cargandoDatos = false // Ya tenemos los datos, liberamos el escaneo
+                    estaSincronizando = false
+            }
+                kotlinx.coroutines.delay(30000) // Espera 30 segundos antes de volver a consultar
             }
         }
 
@@ -151,6 +162,37 @@ class MainActivity : ComponentActivity() {
                 }
 
             )
+
+            if (cargandoDatos) {
+                Text(
+                    text = "⏳ Sincronizando con Google Sheets...",
+                    color = Color.Red,
+                    modifier = Modifier.padding(8.dp),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(8.dp)
+                ) {
+                    // Círculo pequeño
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(10.dp)
+                            .background(
+                                color = if (estaSincronizando) Color.Blue else Color(0xFF4CAF50),
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
+                    )
+
+                    Text(
+                        text = if (estaSincronizando) "Actualizando datos..." else "✅ Sistema Listo - Siguiente N°: ${calcularSiguienteNumero(listaONU)}",
+                        color = if (estaSincronizando) Color.Blue else Color(0xFF4CAF50),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
 
             Text(
                 modifier = Modifier
@@ -188,21 +230,7 @@ class MainActivity : ComponentActivity() {
             }
 
         }
-        if (cargandoDatos) {
-            Text(
-                text = "⏳ Sincronizando con Google Sheets...",
-                color = Color.Red,
-                modifier = Modifier.padding(8.dp),
-                style = MaterialTheme.typography.labelLarge
-            )
-        } else {
-            Text(
-                text = "✅ Sistema Listo - Siguiente N°: ${calcularSiguienteNumero(listaONU)}",
-                color = Color(0xFF4CAF50), // Verde
-                modifier = Modifier.padding(8.dp),
-                style = MaterialTheme.typography.labelLarge
-            )
-        }
+
 
     }
 
@@ -289,26 +317,40 @@ class MainActivity : ComponentActivity() {
         estaBloqueado = true
         vibrar(context)
 
-        val proximoNumero = calcularSiguienteNumero(listaActual)
+        // Capturamos valores locales
+        val macParaEnviar = macDetectada ?: ""
+        val ponParaEnviar = ponDetectada ?: ""
 
-        // Mensaje de enviando
-        onUIUpdate("✅ Capturado equipo N°$proximoNumero\nEnviando a Google Sheets...")
+        //onUIUpdate("⏳ Verificando último número en la nube...")
 
-        // Lógica de envío
-        agregarData(numero = proximoNumero, mac = macDetectada ?: "", serial = ponDetectada ?: "") {
-            obtenerData { newList ->
-                onRefreshList(newList)
-                onUIUpdate("✅ ENVIADO EXITOSAMENTE\nN°: $proximoNumero\nMAC: $macDetectada\nPON: $ponDetectada")
+        obtenerData { listaMasReciente ->
+            // Actualizamos la lista local con lo que acabamos de bajar
+            onRefreshList(listaMasReciente)
+
+            val proximoNumero = calcularSiguienteNumero(listaMasReciente)
+
+            onUIUpdate("✅ Capturado equipo N°$proximoNumero\nEnviando a Google Sheets...")
+
+            // Lógica de envío
+            agregarData(
+                numero = proximoNumero,
+                mac = macParaEnviar,
+                serial = ponParaEnviar
+            ) {
+                obtenerData { newList ->
+                    onRefreshList(newList)
+                    onUIUpdate("✅ ENVIADO EXITOSAMENTE\nN°: $proximoNumero\nMAC: $macParaEnviar\nPON: $ponParaEnviar")
+
+                    // Reiniciamos el escáner después de 5 segundos
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        macDetectada = null
+                        ponDetectada = null
+                        estaBloqueado = false
+                        onUIUpdate("🔍 Escaneando siguiente equipo...")
+                    }, 5000)
+                }
             }
         }
-
-        // Reiniciamos el escáner después de 5 segundos
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            macDetectada = null
-            ponDetectada = null
-            estaBloqueado = false
-            onUIUpdate("🔍 Escaneando siguiente equipo...")
-        }, 5000)
     }
 
 
