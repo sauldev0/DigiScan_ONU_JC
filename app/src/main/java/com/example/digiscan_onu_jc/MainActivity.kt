@@ -79,6 +79,8 @@ import androidx.navigation.compose.rememberNavController
 import com.dotlottie.dlplayer.Mode
 import com.example.digiscan_onu_jc.navigation.AppNavigation
 import com.example.digiscan_onu_jc.navigation.AppScreens
+import com.example.digiscan_onu_jc.screens.HistoryScreen
+import com.example.digiscan_onu_jc.screens.ScannerScreen
 import com.example.leer_escribir_compose_googlesheets.BaseUrl
 import com.example.leer_escribir_compose_googlesheets.Constantes
 import com.example.leer_escribir_compose_googlesheets.ONU
@@ -120,18 +122,17 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DigiScan_ONU_JCTheme {
-                val navController = rememberNavController()
+                // 1. Estados Globales
+                var rutaActual by remember { mutableStateOf(AppScreens.ScannerScreen.route) }
                 var mostrarCarga by remember { mutableStateOf(true) }
                 var listaONU by remember { mutableStateOf(emptyList<ONU>()) }
                 var scanResult by remember { mutableStateOf("Escanea un codigo") }
                 var estaSincronizando by remember { mutableStateOf(false) }
                 var cargandoDatos by remember { mutableStateOf(true) }
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route
 
-                // LOGICA DE CARGA Y POLLING
+                // 2. LOGICA DE CARGA Y POLLING
                 LaunchedEffect(Unit) {
-                    while(true) {
+                    while (true) {
                         estaSincronizando = true
                         obtenerData {
                             listaONU = it
@@ -148,35 +149,59 @@ class MainActivity : ComponentActivity() {
                         containerColor = MaterialTheme.colorScheme.background,
                         bottomBar = {
                             if (!mostrarCarga) {
-                                BottomNavigationBar(navController)
-                            }
-                        }
-                    ) { innerPadding ->
-
-                        AppNavigation(
-                            navController = navController,
-                            innerPadding = innerPadding,
-                            scanResult = scanResult,
-                            listaONU = listaONU,
-                            estaSincronizando = estaSincronizando,
-                            cargandoDatos = cargandoDatos,
-                            // No pasamos 'previewView', ahora pasamos la lógica onStartCamera
-                            onStartCamera = { vistaRecibida ->
-
-                                if (currentRoute == AppScreens.ScannerScreen.route) {
-                                    startCamera(
-                                        context = this@MainActivity,
-                                        previewView = vistaRecibida, // Usamos la vista que viene del ScannerScreen
-                                        onBarcodeDetected = { scanResult = it },
-                                        onRefreshList = { listaONU = it },
-                                        obtenerListaActual = { listaONU },
-                                        obtenerCargando = { cargandoDatos }
+                                // Barra de navegación personalizada (ya no requiere navController)
+                                NavigationBar {
+                                    NavigationBarItem(
+                                        selected = rutaActual == AppScreens.ScannerScreen.route,
+                                        onClick = { rutaActual = AppScreens.ScannerScreen.route },
+                                        icon = { Icon(Icons.Default.QrCodeScanner, null) },
+                                        label = { Text("Escáner") }
+                                    )
+                                    NavigationBarItem(
+                                        selected = rutaActual == AppScreens.HistoryScreen.route,
+                                        onClick = { rutaActual = AppScreens.HistoryScreen.route },
+                                        icon = { Icon(Icons.Default.History, null) },
+                                        label = { Text("Historial") }
                                     )
                                 }
                             }
-                        )
+                        }
+                    ) { innerPadding ->
+                        // Pilas de pantallas en lugar de navegación destructiva
+                        Box(modifier = Modifier.fillMaxSize()) {
+
+                            // Capa 1 (Fondo): El Escáner siempre está activo
+                            ScannerScreen(
+                                innerPadding = innerPadding,
+                                scanResult = scanResult,
+                                listaONU = listaONU,
+                                estaSincronizando = estaSincronizando,
+                                cargandoDatos = cargandoDatos,
+                                onStartCamera = { vistaRecibida ->
+                                    // Ya no necesitamos validar la ruta, la cámara inicia una sola vez
+                                    startCamera(
+                                        context = this@MainActivity,
+                                        previewView = vistaRecibida,
+                                        onBarcodeDetected = { scanResult = it },
+                                        onRefreshList = { listaONU = it },
+                                        obtenerListaActual = { listaONU },
+                                        obtenerCargando = { cargandoDatos },
+                                        estaEnPantallaEscaner = { rutaActual == AppScreens.ScannerScreen.route }
+                                    )
+                                }
+                            )
+
+                            // Capa 2 (Frente): El Historial se dibuja ENCIMA solo si se selecciona
+                            if (rutaActual == AppScreens.HistoryScreen.route) {
+                                HistoryScreen(
+                                    listaONU = listaONU,
+                                    innerPadding = innerPadding
+                                )
+                            }
+                        }
                     }
 
+                    // Capa 3 (Superior absoluta): Animación de carga
                     if (mostrarCarga) PantallaDeCarga()
                 }
             }
@@ -210,7 +235,8 @@ class MainActivity : ComponentActivity() {
         onBarcodeDetected: (String) -> Unit,
         onRefreshList: (List<ONU>) -> Unit,
         obtenerListaActual: () -> List<ONU>,
-        obtenerCargando: () -> Boolean
+        obtenerCargando: () -> Boolean,
+        estaEnPantallaEscaner: () -> Boolean
     ) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
@@ -226,7 +252,7 @@ class MainActivity : ComponentActivity() {
                 .build()
                 .also {
                     it.setAnalyzer(cameraExecutor, { imageProxy ->
-                        processImageProxy(onBarcodeDetected, imageProxy, onRefreshList, obtenerListaActual(), obtenerCargando())
+                        processImageProxy(onBarcodeDetected, imageProxy, onRefreshList, obtenerListaActual(), obtenerCargando(), estaEnPantallaEscaner())
                     })
                 }
 
@@ -242,25 +268,29 @@ class MainActivity : ComponentActivity() {
     }
 
     @OptIn(ExperimentalGetImage::class)
-    private fun processImageProxy(onBarcodeDetected: (String) -> Unit, imageProxy: ImageProxy, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>, cargandoDatos: Boolean){
+    private fun processImageProxy(onBarcodeDetected: (String) -> Unit, imageProxy: ImageProxy, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>, cargandoDatos: Boolean, escaneoActivo: Boolean){
 
         val mediaImage = imageProxy.image
 
-        if (mediaImage != null){
-            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-            barcodeScanner.process(image)
-                .addOnSuccessListener { barcodes ->
-                    for (barcode in barcodes) {
-                        handleBarcode(onBarcodeDetected, barcode, this@MainActivity, onRefreshList, listaActual, cargandoDatos)
-                    }
-                }
-                .addOnFailureListener {
-                    Toast.makeText(this, "No se detecto codigo", Toast.LENGTH_SHORT).show()
-                }
-                .addOnCompleteListener {
-                    imageProxy.close()
-                }
+        // Salida rápida: Si no hay imagen o el escáner debe estar apagado
+        if (mediaImage == null || !escaneoActivo) {
+            imageProxy.close()
+            return
         }
+
+        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        barcodeScanner.process(image)
+            .addOnSuccessListener { barcodes ->
+                for (barcode in barcodes) {
+                    handleBarcode(onBarcodeDetected, barcode, this@MainActivity, onRefreshList, listaActual, cargandoDatos)
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "No se detecto codigo", Toast.LENGTH_SHORT).show()
+            }
+            .addOnCompleteListener {
+                imageProxy.close()
+            }
     }
 
     private fun handleBarcode(onUIUpdate: (String) -> Unit, barcode: Barcode, context: Context, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>, cargandoDatos: Boolean) {
