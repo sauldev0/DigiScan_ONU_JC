@@ -43,6 +43,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.SettingsOverscan
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -99,6 +100,7 @@ import kotlinx.coroutines.withContext
 
 
 
+
 class MainActivity : ComponentActivity() {
 
     private lateinit var cameraExecutor: ExecutorService
@@ -122,6 +124,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DigiScan_ONU_JCTheme {
+
                 // 1. Estados Globales
                 var rutaActual by remember { mutableStateOf(AppScreens.ScannerScreen.route) }
                 var mostrarCarga by remember { mutableStateOf(true) }
@@ -130,8 +133,18 @@ class MainActivity : ComponentActivity() {
                 var estaSincronizando by remember { mutableStateOf(false) }
                 var cargandoDatos by remember { mutableStateOf(true) }
 
+                // Permisos de camara
+                val requestPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { isGranted ->
+                    if (!isGranted) {
+                        scanResult = "Permisos de cámara necesarios"
+                    }
+                }
+
                 // 2. LOGICA DE CARGA Y POLLING
                 LaunchedEffect(Unit) {
+                    requestPermissionLauncher.launch(Manifest.permission.CAMERA)
                     while (true) {
                         estaSincronizando = true
                         obtenerData {
@@ -154,7 +167,13 @@ class MainActivity : ComponentActivity() {
                                     NavigationBarItem(
                                         selected = rutaActual == AppScreens.ScannerScreen.route,
                                         onClick = { rutaActual = AppScreens.ScannerScreen.route },
-                                        icon = { Icon(Icons.Default.QrCodeScanner, null) },
+                                        icon = {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.barcode_scan_icon),
+                                                contentDescription = "Escáner",
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        },
                                         label = { Text("Escáner") }
                                     )
                                     NavigationBarItem(
@@ -430,29 +449,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @Composable
-    fun BottomNavigationBar(navController: NavHostController) {
-        val items = listOf(AppScreens.ScannerScreen, AppScreens.HistoryScreen)
-        NavigationBar {
-            val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentRoute = navBackStackEntry?.destination?.route
-
-            items.forEach { screen ->
-                NavigationBarItem(
-                    icon = { Icon(if(screen is AppScreens.ScannerScreen) Icons.Default.QrCodeScanner else Icons.Default.History, null) },
-                    label = { Text(if(screen is AppScreens.ScannerScreen) "Escáner" else "Historial") },
-                    selected = currentRoute == screen.route,
-                    onClick = {
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
-            }
-        }
-    }
 }
 
 @Composable
