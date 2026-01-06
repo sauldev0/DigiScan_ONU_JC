@@ -372,7 +372,8 @@ class MainActivity : ComponentActivity() {
 
             val proximoNumero = calcularSiguienteNumero(listaMasReciente)
 
-            onUIUpdate("✅ Capturado equipo N°$proximoNumero\nEnviando a Google Sheets...")
+            onUIUpdate("Enviando a Google Sheets...")
+            //onUIUpdate("✅ Capturado equipo N°$proximoNumero\nEnviando a Google Sheets...")
 
             // Lógica de envío
             agregarData(
@@ -382,14 +383,15 @@ class MainActivity : ComponentActivity() {
             ) {
                 obtenerData { newList ->
                     onRefreshList(newList)
-                    onUIUpdate("✅ ENVIADO EXITOSAMENTE\nN°: $proximoNumero\nMAC: $macParaEnviar\nPON: $ponParaEnviar")
+                    //onUIUpdate("✅ ENVIADO EXITOSAMENTE\nN°: $proximoNumero\nMAC: $macParaEnviar\nPON: $ponParaEnviar")
+                    onUIUpdate("¡Registro Exitoso!")
 
                     // Reiniciamos el escáner después de 5 segundos
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                         macDetectada = null
                         ponDetectada = null
                         estaBloqueado = false
-                        onUIUpdate("🔍 Escaneando siguiente equipo...")
+                        onUIUpdate("Escaneando siguiente equipo...")
                     }, 5000)
                 }
             }
