@@ -32,7 +32,7 @@ fun AppNavigation(
             )
         }
         composable(AppScreens.HistoryScreen.route) {
-            HistoryScreen(listaONU, innerPadding)
+            HistoryScreen(listaONU, innerPadding, estaSincronizando, {})
         }
     }
 }

@@ -142,18 +142,17 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // 2. LOGICA DE CARGA Y POLLING
+                // 2. LOGICA DE CARGA
                 LaunchedEffect(Unit) {
                     requestPermissionLauncher.launch(Manifest.permission.CAMERA)
-                    while (true) {
-                        estaSincronizando = true
-                        obtenerData {
-                            listaONU = it
-                            cargandoDatos = false
-                            estaSincronizando = false
-                            mostrarCarga = false
-                        }
-                        delay(30000)
+
+                    // Solo una carga inicial al abrir la app
+                    estaSincronizando = true
+                    obtenerData {
+                        listaONU = it
+                        cargandoDatos = false
+                        estaSincronizando = false
+                        mostrarCarga = false
                     }
                 }
 
@@ -178,7 +177,15 @@ class MainActivity : ComponentActivity() {
                                     )
                                     NavigationBarItem(
                                         selected = rutaActual == AppScreens.HistoryScreen.route,
-                                        onClick = { rutaActual = AppScreens.HistoryScreen.route },
+                                        onClick = {
+                                            rutaActual = AppScreens.HistoryScreen.route
+                                            // Disparamos una actualización manual al entrar al historial
+                                            estaSincronizando = true
+                                            obtenerData {
+                                                listaONU = it
+                                                estaSincronizando = false
+                                            }
+                                        },
                                         icon = { Icon(Icons.Default.History, null) },
                                         label = { Text("Historial") }
                                     )
@@ -214,7 +221,15 @@ class MainActivity : ComponentActivity() {
                             if (rutaActual == AppScreens.HistoryScreen.route) {
                                 HistoryScreen(
                                     listaONU = listaONU,
-                                    innerPadding = innerPadding
+                                    innerPadding = innerPadding,
+                                    estaSincronizando = estaSincronizando,
+                                    onRefresh = {
+                                        estaSincronizando = true
+                                        obtenerData {
+                                            listaONU = it
+                                            estaSincronizando = false
+                                        }
+                                    }
                                 )
                             }
                         }

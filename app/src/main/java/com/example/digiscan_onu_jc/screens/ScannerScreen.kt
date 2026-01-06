@@ -23,6 +23,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.leer_escribir_compose_googlesheets.ONU
 import android.view.ViewGroup.LayoutParams
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import com.lottiefiles.dotlottie.core.compose.ui.DotLottieAnimation
+import com.lottiefiles.dotlottie.core.util.DotLottieSource
+import com.dotlottie.dlplayer.Mode
+import com.example.digiscan_onu_jc.R
 
 @Composable
 fun ScannerScreen(
@@ -31,10 +42,9 @@ fun ScannerScreen(
     listaONU: List<ONU>,
     estaSincronizando: Boolean,
     cargandoDatos: Boolean,
-    // Pasamos la función desde la Activity
     onStartCamera: (PreviewView) -> Unit
 ) {
-    val context = LocalContext.current
+    val ultimaONU = listaONU.lastOrNull()
 
     Column(
         modifier = Modifier
@@ -42,54 +52,98 @@ fun ScannerScreen(
             .padding(innerPadding),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        AndroidView(
+        // CONTENEDOR DE CÁMARA + GUÍA + INDICADORES
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.6f),
-            factory = { ctx ->
-                // Creamos la vista aquí
-                PreviewView(ctx).apply {
-                    layoutParams = LayoutParams(
-                        LayoutParams.MATCH_PARENT,
-                        LayoutParams.MATCH_PARENT
+                .weight(0.6f)
+        ) {
+            // 1. La Cámara (Fondo)
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    PreviewView(ctx).apply {
+                        layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+                    }
+                },
+                update = { view -> onStartCamera(view) }
+            )
+
+            // Indicador puntito verde
+            if (!cargandoDatos) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .background(Color.Black.copy(alpha = 0.4f), shape = RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(color = Color(0xFF4CAF50), shape = CircleShape)
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    Text(
+                        text = "Siguiente ONU: ${calcularSiguienteNumero(listaONU)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
                     )
                 }
-            },
-            update = { view ->
-                // Cuando la vista se actualiza/crea, iniciamos la cámara pasándole esta vista
-                onStartCamera(view)
             }
-        )
 
-        // Estado de Sincronización
-        if (!cargandoDatos) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .size(10.dp)
-                        .background(
-                            color = if (estaSincronizando) Color.Blue else Color(0xFF4CAF50),
-                            shape = CircleShape
-                        )
-                )
-                Text(
-                    text = if (estaSincronizando) "Actualizando..." else "✅ Listo - Siguiente: ${calcularSiguienteNumero(listaONU)}",
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
+            // 3. GUÍA VISUAL (Centrada)
+            DotLottieAnimation(
+                source = DotLottieSource.Res(R.raw.scanner),
+                autoplay = true,
+                loop = true,
+                modifier = Modifier
+                    .size(280.dp)
+                    .align(Alignment.Center) // <--- Centrado absoluto
+            )
         }
 
-        // Resultados del Escaneo Actual
+        // 4. RESULTADOS DEL ESCANEO ACTUAL (MAC OK / PON OK)
         Text(
             modifier = Modifier.padding(16.dp),
             text = scanResult,
             style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.primary
         )
+
+        // 5. CARD DEL EQUIPO RECIÉN REGISTRADO
+        if (ultimaONU != null) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Image(
+                        painter = painterResource(id = obtenerLogoFabricante(ultimaONU.serial)),
+                        contentDescription = null,
+                        modifier = Modifier.size(50.dp)
+                    )
+                    Column(modifier = Modifier.padding(start = 16.dp)) {
+                        Text(
+                            text = "Último Registro: N° ${ultimaONU.numero}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(text = "MAC: ${ultimaONU.mac}", style = MaterialTheme.typography.bodyMedium)
+                        Text(text = "SN: ${ultimaONU.serial}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+
+
     }
 }
 fun calcularSiguienteNumero(lista: List<ONU>): String {
