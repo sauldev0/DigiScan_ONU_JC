@@ -22,6 +22,7 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -222,9 +224,24 @@ class MainActivity : ComponentActivity() {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(8.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
+                        Row(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // MOSTRAR EL PNG
+                            Image(
+                                painter = painterResource(id = obtenerLogoFabricante(item.serial)),
+                                contentDescription = "Fabricante",
+                                modifier = Modifier
+                                    .size(45.dp) // Tamaño en pantalla
+                                    .padding(end = 12.dp)
+                            )
+
                         Column(
                             modifier = Modifier
                                 .padding(8.dp)
@@ -241,7 +258,24 @@ class MainActivity : ComponentActivity() {
 
         }
 
+        }
 
+
+    }
+
+    @Composable
+    fun obtenerLogoFabricante(serial: String?): Int {
+        // Tomamos las primeras 4 letras del serial (PON SN)
+        val prefijo = serial?.take(4)?.uppercase() ?: ""
+
+        return when (prefijo) {
+            "VSOL" -> R.drawable.vsol_logo  // Nombre de tu archivo png en drawable
+            // "HWTC", "HUAW" -> R.drawable.huawei_logo
+            // "ZTEG" -> R.drawable.zte_logo
+            //"FHTT" -> R.drawable.fiberhome_logo
+            // "TPLN" -> R.drawable.tplink_logo
+            else -> R.drawable.generic_onu_logo // Un logo por defecto
+        }
     }
 
     private fun startCamera(context: Context, onBarcodeDetected: (String) -> Unit, onRefreshList: (List<ONU>) -> Unit, obtenerListaActual: () -> List<ONU>, obtenerCargando: () -> Boolean){
@@ -431,39 +465,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
-}
-
-
-
-
-// preview simulacion
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun BarcodeScannerPreview() {
-    DigiScan_ONU_JCTheme {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(16.dp)
-                    .background(Color.Black, RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Cámara Activa", color = Color.White)
+    // preview simulacion
+    @Preview()
+    @Composable
+    fun previewSystem(){
+        DigiScan_ONU_JCTheme() {
+            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                BarcodeScannerScreen(innerPadding)
             }
-
-            Text(
-                modifier = Modifier.padding(16.dp),
-                text = "✅ MAC: 00:1A:2B:3C:4D:5E\n🔍 Buscando PON SN...",
-                style = MaterialTheme.typography.bodyLarge
-            )
         }
     }
+
 }
+
+
+
+
+
+
 
