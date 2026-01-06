@@ -29,9 +29,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -55,12 +58,14 @@ import java.util.concurrent.Executors
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.dotlottie.dlplayer.Mode
 import com.example.leer_escribir_compose_googlesheets.BaseUrl
 import com.example.leer_escribir_compose_googlesheets.Constantes
 import com.example.leer_escribir_compose_googlesheets.ONU
@@ -68,11 +73,15 @@ import com.example.leer_escribir_compose_googlesheets.ONUData
 import com.example.leer_escribir_compose_googlesheets.RetrofitClient
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.lottiefiles.dotlottie.core.compose.ui.DotLottieAnimation
+import com.lottiefiles.dotlottie.core.util.DotLottieSource
+import com.lottiefiles.dotlottie.core.widget.DotLottieAnimation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
 
 
 class MainActivity : ComponentActivity() {
@@ -99,9 +108,23 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DigiScan_ONU_JCTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    BarcodeScannerScreen(innerPadding)
+                var mostrarCarga by remember { mutableStateOf(true) }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Pantalla principal de la App
+                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                        BarcodeScannerScreen(
+                            innerPadding = innerPadding,
+                            onDatosListos = {
+                                // Cuando obtenerData responda, oculta el Lottie
+                                mostrarCarga = false
+                            }
+                        )
+                    }
 
+                    // Capa superior: Pantalla de Carga
+                    if (mostrarCarga) {
+                        PantallaDeCarga()
+                    }
                 }
             }
         }
@@ -113,7 +136,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun BarcodeScannerScreen(innerPadding: PaddingValues) {
+    fun BarcodeScannerScreen(innerPadding: PaddingValues, onDatosListos: () -> Unit) {
         var scanResult by remember { mutableStateOf("Escanea un codigo") }
         var listaONU by remember { mutableStateOf(emptyList<ONU>()) }
 
@@ -139,6 +162,7 @@ class MainActivity : ComponentActivity() {
                 listaONU = newList
                 cargandoDatos = false // Desbloquea la interfaz rápido
                 estaSincronizando = false
+                onDatosListos()
             }
 
             // BUCLE DE ACTUALIZACIÓN (Polling)
@@ -465,18 +489,65 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+
     // preview simulacion
     @Preview()
     @Composable
     fun previewSystem(){
-        DigiScan_ONU_JCTheme() {
-            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                BarcodeScannerScreen(innerPadding)
+        DigiScan_ONU_JCTheme {
+            var mostrarCarga by remember { mutableStateOf(true) }
+            Box(modifier = Modifier.fillMaxSize()) {
+                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    BarcodeScannerScreen(
+                        innerPadding = innerPadding,
+                        onDatosListos = {
+                            mostrarCarga = false
+                        }
+                    )
+                }
+                if (mostrarCarga) {
+                    PantallaDeCarga()
+                }
             }
         }
     }
-
 }
+
+@Composable
+fun PantallaDeCarga() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.logo_app),
+            contentDescription = "Logo DigiScan",
+            modifier = Modifier.size(120.dp)
+        )
+
+        DotLottieAnimation(
+            source = DotLottieSource.Res(R.raw.loading_animation),
+            autoplay = true,
+            loop = true,
+            speed = 3f,
+            useFrameInterpolation = false,
+            playMode = Mode.FORWARD,
+            modifier = Modifier.size(300.dp)
+        )
+
+        Text(
+            text = "Sincronizando con Google Sheets...",
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.DarkGray,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+    }
+}
+
 
 
 
