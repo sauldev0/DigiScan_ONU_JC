@@ -101,9 +101,41 @@ fun ScannerScreen(
                     .size(280.dp)
                     .align(Alignment.Center) // <--- Centrado absoluto
             )
+
+            // 4. CARD DEL EQUIPO RECIÉN REGISTRADO
+            if (ultimaONU != null) {
+                Card(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(id = obtenerLogoFabricante(ultimaONU.serial)),
+                            contentDescription = null,
+                            modifier = Modifier.size(50.dp)
+                        )
+                        Column(modifier = Modifier.padding(start = 16.dp)) {
+                            Text(
+                                text = "Último Registro: N° ${ultimaONU.numero}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(text = "MAC: ${ultimaONU.mac}", style = MaterialTheme.typography.bodyMedium)
+                            Text(text = "SN: ${ultimaONU.serial}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
         }
 
-        // 4. RESULTADOS DEL ESCANEO ACTUAL (MAC OK / PON OK)
+        // 5. RESULTADOS DEL ESCANEO ACTUAL (MAC OK / PON OK)
         Text(
             modifier = Modifier.padding(16.dp),
             text = scanResult,
@@ -112,36 +144,7 @@ fun ScannerScreen(
             color = MaterialTheme.colorScheme.primary
         )
 
-        // 5. CARD DEL EQUIPO RECIÉN REGISTRADO
-        if (ultimaONU != null) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painter = painterResource(id = obtenerLogoFabricante(ultimaONU.serial)),
-                        contentDescription = null,
-                        modifier = Modifier.size(50.dp)
-                    )
-                    Column(modifier = Modifier.padding(start = 16.dp)) {
-                        Text(
-                            text = "Último Registro: N° ${ultimaONU.numero}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(text = "MAC: ${ultimaONU.mac}", style = MaterialTheme.typography.bodyMedium)
-                        Text(text = "SN: ${ultimaONU.serial}", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-        }
+
 
 
     }
