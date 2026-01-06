@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import android.widget.FrameLayout
 import android.widget.FrameLayout.LayoutParams
 import android.widget.Toast
@@ -39,9 +40,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,7 +72,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.dotlottie.dlplayer.Mode
+import com.example.digiscan_onu_jc.navigation.AppNavigation
+import com.example.digiscan_onu_jc.navigation.AppScreens
 import com.example.leer_escribir_compose_googlesheets.BaseUrl
 import com.example.leer_escribir_compose_googlesheets.Constantes
 import com.example.leer_escribir_compose_googlesheets.ONU
@@ -86,7 +99,6 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
-    private var previewView: PreviewView? = null
     private lateinit var cameraExecutor: ExecutorService
     private lateinit var barcodeScanner: BarcodeScanner
 
@@ -108,23 +120,64 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DigiScan_ONU_JCTheme {
+                val navController = rememberNavController()
                 var mostrarCarga by remember { mutableStateOf(true) }
+                var listaONU by remember { mutableStateOf(emptyList<ONU>()) }
+                var scanResult by remember { mutableStateOf("Escanea un codigo") }
+                var estaSincronizando by remember { mutableStateOf(false) }
+                var cargandoDatos by remember { mutableStateOf(true) }
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
+
+                // LOGICA DE CARGA Y POLLING
+                LaunchedEffect(Unit) {
+                    while(true) {
+                        estaSincronizando = true
+                        obtenerData {
+                            listaONU = it
+                            cargandoDatos = false
+                            estaSincronizando = false
+                            mostrarCarga = false
+                        }
+                        delay(30000)
+                    }
+                }
+
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Pantalla principal de la App
-                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                        BarcodeScannerScreen(
+                    Scaffold(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        bottomBar = {
+                            if (!mostrarCarga) {
+                                BottomNavigationBar(navController)
+                            }
+                        }
+                    ) { innerPadding ->
+
+                        AppNavigation(
+                            navController = navController,
                             innerPadding = innerPadding,
-                            onDatosListos = {
-                                // Cuando obtenerData responda, oculta el Lottie
-                                mostrarCarga = false
+                            scanResult = scanResult,
+                            listaONU = listaONU,
+                            estaSincronizando = estaSincronizando,
+                            cargandoDatos = cargandoDatos,
+                            // No pasamos 'previewView', ahora pasamos la lógica onStartCamera
+                            onStartCamera = { vistaRecibida ->
+
+                                if (currentRoute == AppScreens.ScannerScreen.route) {
+                                    startCamera(
+                                        context = this@MainActivity,
+                                        previewView = vistaRecibida, // Usamos la vista que viene del ScannerScreen
+                                        onBarcodeDetected = { scanResult = it },
+                                        onRefreshList = { listaONU = it },
+                                        obtenerListaActual = { listaONU },
+                                        obtenerCargando = { cargandoDatos }
+                                    )
+                                }
                             }
                         )
                     }
 
-                    // Capa superior: Pantalla de Carga
-                    if (mostrarCarga) {
-                        PantallaDeCarga()
-                    }
+                    if (mostrarCarga) PantallaDeCarga()
                 }
             }
         }
@@ -135,157 +188,6 @@ class MainActivity : ComponentActivity() {
         cameraExecutor.shutdown()
     }
 
-    @Composable
-    fun BarcodeScannerScreen(innerPadding: PaddingValues, onDatosListos: () -> Unit) {
-        var scanResult by remember { mutableStateOf("Escanea un codigo") }
-        var listaONU by remember { mutableStateOf(emptyList<ONU>()) }
-
-        var cargandoDatos by remember { mutableStateOf(true) }
-        var estaSincronizando by remember { mutableStateOf(false) } // Para el efecto visual
-
-        val context = LocalContext.current
-
-        val requestPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted){
-                startCamera(context, { result -> scanResult = result },{ newList -> listaONU = newList }, {listaONU}, { cargandoDatos })
-            } else {
-                scanResult = "Permisos de camara necesarios"
-            }
-        }
-
-        LaunchedEffect(true) {
-            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
-
-            // CARGA INICIAL INMEDIATA
-            estaSincronizando = true
-            obtenerData { newList ->
-                listaONU = newList
-                cargandoDatos = false // Desbloquea la interfaz rápido
-                estaSincronizando = false
-                onDatosListos()
-            }
-
-            // BUCLE DE ACTUALIZACIÓN (Polling)
-            while (true){
-                delay(30000) // Espera 30 segundos antes de volver a consultar
-                estaSincronizando = true // Inicia parpadeo
-                obtenerData { newList ->
-                    listaONU = newList
-                    cargandoDatos = false // Ya tenemos los datos, liberamos el escaneo
-                    estaSincronizando = false
-            }
-
-            }
-        }
-
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.4f),
-                factory = {context ->
-                    PreviewView(context).apply{
-                        previewView = this
-                        layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-                    }
-                }
-
-            )
-
-            if (cargandoDatos) {
-                Text(
-                    text = "⏳ Sincronizando con Google Sheets...",
-                    color = Color.Red,
-                    modifier = Modifier.padding(8.dp),
-                    style = MaterialTheme.typography.labelLarge
-                )
-            } else {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(8.dp)
-                ) {
-                    // Círculo pequeño
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .size(10.dp)
-                            .background(
-                                color = if (estaSincronizando) Color.Blue else Color(0xFF4CAF50),
-                                shape = androidx.compose.foundation.shape.CircleShape
-                            )
-                    )
-
-                    Text(
-                        text = if (estaSincronizando) "Actualizando datos..." else "✅ Sistema Listo - Siguiente N°: ${calcularSiguienteNumero(listaONU)}",
-                        color = if (estaSincronizando) Color.Blue else Color(0xFF4CAF50),
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
-            }
-
-            Text(
-                modifier = Modifier
-                    .padding(16.dp),
-                text = scanResult,
-                style = MaterialTheme.typography.bodyLarge
-
-            )
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.6f)
-                    .padding(8.dp)
-            ) {
-                items(listaONU.reversed()){item ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .padding(12.dp)
-                                .fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // MOSTRAR EL PNG
-                            Image(
-                                painter = painterResource(id = obtenerLogoFabricante(item.serial)),
-                                contentDescription = "Fabricante",
-                                modifier = Modifier
-                                    .size(45.dp) // Tamaño en pantalla
-                                    .padding(end = 12.dp)
-                            )
-
-                        Column(
-                            modifier = Modifier
-                                .padding(8.dp)
-
-                        ) {
-                            Text(text = "N°: ${item.numero}")
-                            Text(text = "MAC: ${item.mac}")
-                            Text(text = "SERIAL: ${item.serial}")
-                        }
-                    }
-                }
-
-            }
-
-        }
-
-        }
-
-
-    }
 
     @Composable
     fun obtenerLogoFabricante(serial: String?): Int {
@@ -293,7 +195,7 @@ class MainActivity : ComponentActivity() {
         val prefijo = serial?.take(4)?.uppercase() ?: ""
 
         return when (prefijo) {
-            "VSOL" -> R.drawable.vsol_logo  // Nombre de tu archivo png en drawable
+            "VSOL" -> R.drawable.vsol_logo  // Nombre archivo png en drawable
             // "HWTC", "HUAW" -> R.drawable.huawei_logo
             // "ZTEG" -> R.drawable.zte_logo
             //"FHTT" -> R.drawable.fiberhome_logo
@@ -302,32 +204,41 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startCamera(context: Context, onBarcodeDetected: (String) -> Unit, onRefreshList: (List<ONU>) -> Unit, obtenerListaActual: () -> List<ONU>, obtenerCargando: () -> Boolean){
-
+    private fun startCamera(
+        context: Context,
+        previewView: PreviewView, // <--- Ahora lo recibimos directamente
+        onBarcodeDetected: (String) -> Unit,
+        onRefreshList: (List<ONU>) -> Unit,
+        obtenerListaActual: () -> List<ONU>,
+        obtenerCargando: () -> Boolean
+    ) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
             val preview = androidx.camera.core.Preview.Builder().build()
 
-            previewView?.let { previewView ->
-                preview.surfaceProvider = previewView.surfaceProvider
+            // Asignamos el surface provider directamente al objeto recibido
+            preview.surfaceProvider = previewView.surfaceProvider
 
-                val imageAnalyzer = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
-                    .also {
-                        it.setAnalyzer(cameraExecutor, { imageProxy ->
-                            processImageProxy(onBarcodeDetected, imageProxy, onRefreshList, obtenerListaActual(), obtenerCargando())
-                        })
-                    }
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            val imageAnalyzer = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+                .also {
+                    it.setAnalyzer(cameraExecutor, { imageProxy ->
+                        processImageProxy(onBarcodeDetected, imageProxy, onRefreshList, obtenerListaActual(), obtenerCargando())
+                    })
+                }
 
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+            try {
+                cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalyzer)
+            } catch (e: Exception) {
+                Log.e("CameraX", "Error al vincular cámara", e)
             }
-
-        }, ContextCompat.getMainExecutor(context) )
-
+        }, ContextCompat.getMainExecutor(context))
     }
 
     @OptIn(ExperimentalGetImage::class)
@@ -489,26 +400,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
-
-    // preview simulacion
-    @Preview()
     @Composable
-    fun previewSystem(){
-        DigiScan_ONU_JCTheme {
-            var mostrarCarga by remember { mutableStateOf(true) }
-            Box(modifier = Modifier.fillMaxSize()) {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    BarcodeScannerScreen(
-                        innerPadding = innerPadding,
-                        onDatosListos = {
-                            mostrarCarga = false
+    fun BottomNavigationBar(navController: NavHostController) {
+        val items = listOf(AppScreens.ScannerScreen, AppScreens.HistoryScreen)
+        NavigationBar {
+            val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val currentRoute = navBackStackEntry?.destination?.route
+
+            items.forEach { screen ->
+                NavigationBarItem(
+                    icon = { Icon(if(screen is AppScreens.ScannerScreen) Icons.Default.QrCodeScanner else Icons.Default.History, null) },
+                    label = { Text(if(screen is AppScreens.ScannerScreen) "Escáner" else "Historial") },
+                    selected = currentRoute == screen.route,
+                    onClick = {
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                    )
-                }
-                if (mostrarCarga) {
-                    PantallaDeCarga()
-                }
+                    }
+                )
             }
         }
     }
