@@ -254,7 +254,17 @@ fun ScannerScreen(
             modifier = Modifier.padding(16.dp),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.primary
+            // Lógica para cambiar el color según el contenido del mensaje
+            color = when {
+                scanResult.contains("REGISTRADO") -> MaterialTheme.colorScheme.error
+
+                scanResult.contains("¡Registro Exitoso!") -> Color(0xFF4CAF50)
+
+                scanResult.contains("OK") -> Color(0xFF4CAF50)
+
+                // Por defecto usamos el color primario del tema
+                else -> MaterialTheme.colorScheme.primary
+            }
         )
     }
 }

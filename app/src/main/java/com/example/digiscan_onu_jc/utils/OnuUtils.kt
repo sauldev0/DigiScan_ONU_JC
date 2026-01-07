@@ -14,6 +14,7 @@ fun obtenerLogoFabricante(serial: String?): Int {
         "HWTC", "HUAW" -> R.drawable.huawei_logo
         "ZTEG" -> R.drawable.zte_logo
         "TPLN" -> R.drawable.tplink_logo
+        "BTPT" -> R.drawable.btpon_logo
         //"FHTT" -> R.drawable.fiberhome_logo
         else -> R.drawable.generic_onu_logo // Un logo por defecto
     }

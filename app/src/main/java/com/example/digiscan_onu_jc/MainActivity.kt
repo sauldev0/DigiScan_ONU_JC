@@ -366,8 +366,8 @@ class MainActivity : ComponentActivity() {
             finalizarCaptura(onUIUpdate, context, onRefreshList, listaActual)
         } else {
             // Actualizamos la UI con los "checks" parciales
-            val statusMac = if (macDetectada != null) "✅ MAC OK" else "🔍 Buscando MAC..."
-            val statusPon = if (ponDetectada != null) "✅ PON OK" else "🔍 Buscando PON SN..."
+            val statusMac = if (macDetectada != null) "MAC OK" else "Buscando MAC..."
+            val statusPon = if (ponDetectada != null) "PON OK" else "Buscando PON SN..."
             onUIUpdate("$statusMac\n$statusPon")
         }
     }
