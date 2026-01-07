@@ -68,7 +68,7 @@ fun NotificacionOnuItem(
         delay(2500) // 2.5 seg en verde
         esExitoLocal = false
 
-        delay(40000) // 7.5 seg adicionales (10 total)
+        delay(7500) // 7.5 seg adicionales (10 total)
         visible = false // Inicia animación de salida
 
         delay(500) // Tiempo para que termine la animación

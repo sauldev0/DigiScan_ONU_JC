@@ -91,6 +91,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.lottiefiles.dotlottie.core.compose.ui.DotLottieAnimation
 import com.lottiefiles.dotlottie.core.util.DotLottieSource
+import com.lottiefiles.dotlottie.core.util.toColor
 import com.lottiefiles.dotlottie.core.widget.DotLottieAnimation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -336,7 +337,27 @@ class MainActivity : ComponentActivity() {
             valor.matches(MAC_REGEX) -> {
                 val tieneLetras = valor.any { it.isLetter() }
                 val tieneSeparadores = valor.contains(":") || valor.contains("-") || valor.contains(".")
-                if (tieneLetras || tieneSeparadores) macDetectada = valor
+                if (tieneLetras || tieneSeparadores) {
+                    // VALIDACIÓN TEMPRANA: ¿Esta MAC ya existe en el historial?
+                    val yaExiste = listaActual.any { it.mac?.equals(valor, ignoreCase = true) == true }
+
+                    if (yaExiste) {
+                        vibrar(context)
+                        macDetectada = null // Limpiamos para no arrastrar el error
+                        ponDetectada = null
+                        onUIUpdate("EQUIPO YA REGISTRADO")
+
+                        // Pequeña pausa para que lea el error antes de permitir escanear otro
+                        estaBloqueado = true
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            estaBloqueado = false
+                            onUIUpdate("Escaneando siguiente equipo...")
+                        }, 3000)
+                        return // Cortamos la ejecución aquí, no seguimos buscando el PON
+                    }
+
+                    // Si no existe, procedemos normal
+                    macDetectada = valor}
             }
             // Filtro PON SN
             valor.matches(PON_SN_REGEX) -> {
@@ -392,7 +413,7 @@ class MainActivity : ComponentActivity() {
                         ponDetectada = null
                         estaBloqueado = false
                         onUIUpdate("Escaneando siguiente equipo...")
-                    }, 5000)
+                    }, 2500)
                 }
             }
         }
