@@ -228,6 +228,13 @@ fun ScannerScreen(
                 modifier = Modifier.size(280.dp).align(Alignment.Center)
             )
 
+            Icon(
+                painter = painterResource(id = R.drawable.esquinas_escaner), // Reemplaza con el nombre real de tu PNG
+                contentDescription = "Marco Escáner",
+                modifier = Modifier.size(328.dp).align(Alignment.Center),
+                tint = Color(102, 102, 255)// Ajusta este valor (0.1 a 1.0) para que las esquinas encajen perfecto
+            )
+
             // 4. COLA DE CARDS (Apiladas abajo)
             Column(
                 modifier = Modifier
