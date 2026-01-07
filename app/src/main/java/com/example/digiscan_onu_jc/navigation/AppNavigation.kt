@@ -28,7 +28,8 @@ fun AppNavigation(
                 listaONU,
                 estaSincronizando,
                 cargandoDatos,
-                onStartCamera
+                onStartCamera,
+                onFlashToggle = {}
             )
         }
         composable(AppScreens.HistoryScreen.route) {

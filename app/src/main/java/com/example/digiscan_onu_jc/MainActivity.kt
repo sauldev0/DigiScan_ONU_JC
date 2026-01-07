@@ -17,6 +17,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
@@ -118,6 +119,8 @@ class MainActivity : ComponentActivity() {
 
     private val NUMERO_INICIAL = 2000
 
+    private var camera: Camera? = null // Para controlar flash
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -217,6 +220,9 @@ class MainActivity : ComponentActivity() {
                                         obtenerCargando = { cargandoDatos },
                                         estaEnPantallaEscaner = { rutaActual == AppScreens.ScannerScreen.route }
                                     )
+                                },
+                                onFlashToggle = { encendido ->
+                                    toggleFlash(encendido) // Llama a la lógica de la cámara
                                 }
                             )
 
@@ -280,11 +286,16 @@ class MainActivity : ComponentActivity() {
 
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalyzer)
+                camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalyzer)
             } catch (e: Exception) {
                 Log.e("CameraX", "Error al vincular cámara", e)
             }
         }, ContextCompat.getMainExecutor(context))
+    }
+
+    // FUNCIÓN PARA EL TOGGLE DEL FLASH
+    private fun toggleFlash(encendido: Boolean) {
+        camera?.cameraControl?.enableTorch(encendido)
     }
 
     @OptIn(ExperimentalGetImage::class)

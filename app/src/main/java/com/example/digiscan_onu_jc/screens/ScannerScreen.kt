@@ -37,6 +37,11 @@ import com.example.digiscan_onu_jc.R
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -134,12 +139,14 @@ fun ScannerScreen(
     listaONU: List<ONU>,
     estaSincronizando: Boolean,
     cargandoDatos: Boolean,
-    onStartCamera: (PreviewView) -> Unit
+    onStartCamera: (PreviewView) -> Unit,
+    onFlashToggle: (Boolean) -> Unit
 ) {
     val colaCards = remember { mutableStateListOf<OnuNotif>() }
 
     // 1. Variable para ignorar el primer disparo del LaunchedEffect
     var inicializado by remember { mutableStateOf(false) }
+    var flashEncendido by remember { mutableStateOf(false) } // Estado local del botón
 
     LaunchedEffect(listaONU.size) {
         // 2. Si la lista tiene datos y es la primera vez, marcamos como inicializado y NO añadimos nada
@@ -194,6 +201,23 @@ fun ScannerScreen(
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
+            }
+
+            IconButton(
+                onClick = {
+                    flashEncendido = !flashEncendido
+                    onFlashToggle(flashEncendido)
+                },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = if (flashEncendido) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+                    contentDescription = "Linterna",
+                    tint = if (flashEncendido) Color.Yellow else Color.White
+                )
             }
 
             // 3. Guía Visual
