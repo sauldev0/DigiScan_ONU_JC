@@ -70,7 +70,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -247,23 +249,6 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         cameraExecutor.shutdown()
     }
-
-
-    @Composable
-    fun obtenerLogoFabricante(serial: String?): Int {
-        // Tomamos las primeras 4 letras del serial (PON SN)
-        val prefijo = serial?.take(4)?.uppercase() ?: ""
-
-        return when (prefijo) {
-            "VSOL" -> R.drawable.vsol_logo  // Nombre archivo png en drawable
-            // "HWTC", "HUAW" -> R.drawable.huawei_logo
-            // "ZTEG" -> R.drawable.zte_logo
-            //"FHTT" -> R.drawable.fiberhome_logo
-            // "TPLN" -> R.drawable.tplink_logo
-            else -> R.drawable.generic_onu_logo // Un logo por defecto
-        }
-    }
-
     private fun startCamera(
         context: Context,
         previewView: PreviewView, // <--- Ahora lo recibimos directamente
@@ -491,35 +476,69 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun PantallaDeCarga() {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .background(Color.White)
+            .padding(0.dp) // Margen general para que nada toque los bordes
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.logo_app),
-            contentDescription = "Logo DigiScan",
-            modifier = Modifier.size(120.dp)
-        )
+        // 1. LOGO (Siempre arriba)
+        Column(
+            modifier = Modifier
+                .padding(top = 0.dp) // Espacio desde la cámara/borde superior
+                .align(Alignment.TopCenter),
 
-        DotLottieAnimation(
-            source = DotLottieSource.Res(R.raw.loading_animation),
-            autoplay = true,
-            loop = true,
-            speed = 3f,
-            useFrameInterpolation = false,
-            playMode = Mode.FORWARD,
-            modifier = Modifier.size(300.dp)
-        )
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.logo_app_digiscan),
+                contentDescription = "Logo DigiScan",
+                modifier = Modifier.size(350.dp)
+            )
+        }
 
-        Text(
-            text = "Sincronizando con Google Sheets...",
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.DarkGray,
-            modifier = Modifier.padding(top = 8.dp)
-        )
+        // 2. ANIMACIÓN + TEXTO (CENTRO ABSOLUTO)
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            DotLottieAnimation(
+                source = DotLottieSource.Res(R.raw.loading_animation),
+                autoplay = true,
+                loop = true,
+                speed = 3f,
+                modifier = Modifier.size(300.dp)
+            )
+
+            Text(
+                text = "Sincronizando con Google Sheets...",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.DarkGray,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
+        // 3. CRÉDITOS (Siempre abajo)
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Developed by",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.LightGray.copy(alpha = 0.8f),
+                letterSpacing = 1.sp
+            )
+            Text(
+                text = "sauldev",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.LightGray,
+                letterSpacing = 2.sp
+            )
+        }
     }
 }
 

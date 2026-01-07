@@ -28,14 +28,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.digiscan_onu_jc.R
+import com.example.digiscan_onu_jc.utils.obtenerLogoFabricante
 import com.example.leer_escribir_compose_googlesheets.ONU
 
 @Composable
 fun HistoryScreen(
     listaONU: List<ONU>,
     innerPadding: PaddingValues,
-    estaSincronizando: Boolean, // Nuevo
-    onRefresh: () -> Unit // Nuevo
+    estaSincronizando: Boolean,
+    onRefresh: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -95,30 +96,16 @@ fun HistoryScreen(
                         Image(
                             painter = painterResource(id = obtenerLogoFabricante(item.serial)),
                             contentDescription = null,
-                            modifier = Modifier.size(45.dp).padding(end = 12.dp)
+                            modifier = Modifier.size(85.dp).padding(end = 12.dp)
                         )
                         Column {
-                            Text(text = "N°: ${item.numero}", fontWeight = FontWeight.Bold)
-                            Text(text = "MAC: ${item.mac}", style = MaterialTheme.typography.bodySmall)
-                            Text(text = "SERIAL: ${item.serial}", style = MaterialTheme.typography.bodySmall)
+                            Text(text = "N°: ${item.numero}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(text = "MAC: ${item.mac}", style = MaterialTheme.typography.bodyMedium)
+                            Text(text = "SERIAL: ${item.serial}", style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }
             }
         }
-    }
-}
-@Composable
-fun obtenerLogoFabricante(serial: String?): Int {
-    // Tomamos las primeras 4 letras del serial (PON SN)
-    val prefijo = serial?.take(4)?.uppercase() ?: ""
-
-    return when (prefijo) {
-        "VSOL" -> R.drawable.vsol_logo  // Nombre de tu archivo png en drawable
-        // "HWTC", "HUAW" -> R.drawable.huawei_logo
-        // "ZTEG" -> R.drawable.zte_logo
-        //"FHTT" -> R.drawable.fiberhome_logo
-        // "TPLN" -> R.drawable.tplink_logo
-        else -> R.drawable.generic_onu_logo // Un logo por defecto
     }
 }
