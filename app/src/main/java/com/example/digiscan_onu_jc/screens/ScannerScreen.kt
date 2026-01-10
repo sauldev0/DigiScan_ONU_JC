@@ -148,15 +148,17 @@ fun ScannerScreen(
     var inicializado by remember { mutableStateOf(false) }
     var flashEncendido by remember { mutableStateOf(false) } // Estado local del botón
 
+    // Lógica para elegir la animación
     val lottieRes = when {
-        scanResult.contains("REGISTRADO") -> R.raw.scanner_red
+        scanResult.contains("REGISTRADO") || scanResult.contains("MEZCLADOS") -> R.raw.scanner_red
         scanResult.contains("¡Registro Exitoso!") ||
                 (scanResult.contains("MAC OK") && scanResult.contains("PON OK")) -> R.raw.scanner_green
         else -> R.raw.scanner_default // La animación por defecto
     }
 
+    // Lógica para el color del marco
     val colorMarco = when {
-        scanResult.contains("REGISTRADO") -> MaterialTheme.colorScheme.error // Rojo si ya existe
+        scanResult.contains("REGISTRADO") || scanResult.contains("MEZCLADOS") -> MaterialTheme.colorScheme.error // Rojo si ya existe
         scanResult.contains("¡Registro Exitoso!") || (scanResult.contains("MAC OK") && scanResult.contains("PON OK")) -> Color(0xFF4CAF50) // Verde éxito
         else -> Color(0xFF6666FF) // Morado por defecto
     }
@@ -291,6 +293,8 @@ fun ScannerScreen(
 
                         // Caso: Aún buscando o estado inicial
                         linea.contains("Buscando") -> Color.Gray
+
+                        linea.contains("MEZCLADOS") -> MaterialTheme.colorScheme.error
 
                         else -> MaterialTheme.colorScheme.primary // Azul/Morado por defecto
                     }

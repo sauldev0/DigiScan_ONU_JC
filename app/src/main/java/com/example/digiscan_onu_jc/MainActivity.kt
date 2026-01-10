@@ -326,6 +326,22 @@ class MainActivity : ComponentActivity() {
             }
     }
 
+    private fun sonDelMismoEquipo(mac: String, pon: String): Boolean {
+        // Limpiamos separadores si los hay para comparar solo caracteres
+        val macLimpia = mac.replace(":", "").replace("-", "").replace(".", "").uppercase()
+        val ponLimpia = pon.uppercase()
+
+        // Extraemos la raíz: En VSOL/ADCT, los caracteres del índice 7 al 10 suelen ser la clave
+        // Tomaremos los últimos caracteres del PON (quitando el último)
+        // y veremos si existen dentro de la MAC.
+
+        val raizPon = ponLimpia.substring(ponLimpia.length - 5, ponLimpia.length - 1) // Ejemplo: 3C73F89E -> 3C73F8
+        val raizMac = macLimpia.substring(macLimpia.length - 5, macLimpia.length - 1)
+
+        // Si la raíz del PON está contenida en la MAC, es el mismo equipo
+        return macLimpia.contains(raizPon) || ponLimpia.contains(raizMac)
+    }
+
     private fun handleBarcode(onUIUpdate: (String) -> Unit, barcode: Barcode, context: Context, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>, cargandoDatos: Boolean) {
         if (estaBloqueado || (listaActual.isEmpty() && cargandoDatos)) return
         val valor = barcode.rawValue ?: return
@@ -379,7 +395,22 @@ class MainActivity : ComponentActivity() {
 
         // Si ya tenemos ambos, disparamos el éxito
         if (macDetectada != null && ponDetectada != null) {
-            finalizarCaptura(onUIUpdate, context, onRefreshList, listaActual)
+            // VALIDACIÓN DE INTEGRIDAD CRUZADA
+            if (sonDelMismoEquipo(macDetectada!!, ponDetectada!!)) {
+                finalizarCaptura(onUIUpdate, context, onRefreshList, listaActual)
+            } else {
+                // Si no coinciden, es una mezcla de dos equipos
+                vibrar(context)
+                macDetectada = null
+                ponDetectada = null
+                onUIUpdate("ERROR: EQUIPOS MEZCLADOS\n\nEnfoque un solo equipo")
+
+                estaBloqueado = true
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    estaBloqueado = false
+                    onUIUpdate("Escaneando siguiente equipo...")
+                }, 2500)
+            }
         } else {
             // Actualizamos la UI con los "checks" parciales
             val statusMac = if (macDetectada != null) "MAC OK" else "Buscando MAC..."
