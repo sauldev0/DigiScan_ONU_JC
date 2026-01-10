@@ -8,6 +8,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.FrameLayout.LayoutParams
 import android.widget.Toast
@@ -124,6 +125,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         cameraExecutor = Executors.newSingleThreadExecutor()
         barcodeScanner = BarcodeScanning.getClient()
@@ -325,7 +327,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleBarcode(onUIUpdate: (String) -> Unit, barcode: Barcode, context: Context, onRefreshList: (List<ONU>) -> Unit, listaActual: List<ONU>, cargandoDatos: Boolean) {
-        if (estaBloqueado || listaActual.isEmpty() && cargandoDatos) return
+        if (estaBloqueado || (listaActual.isEmpty() && cargandoDatos)) return
         val valor = barcode.rawValue ?: return
 
         when {
@@ -334,29 +336,43 @@ class MainActivity : ComponentActivity() {
                 val tieneLetras = valor.any { it.isLetter() }
                 val tieneSeparadores = valor.contains(":") || valor.contains("-") || valor.contains(".")
                 if (tieneLetras || tieneSeparadores) {
-                    // VALIDACIÓN TEMPRANA: ¿Esta MAC ya existe en el historial?
+                    // VALIDACIÓN: ¿Esta MAC ya existe?
                     val yaExiste = listaActual.any { it.mac?.equals(valor, ignoreCase = true) == true }
 
                     if (yaExiste) {
                         vibrar(context)
-                        macDetectada = null // Limpiamos para no arrastrar el error
+                        macDetectada = null
                         ponDetectada = null
                         onUIUpdate("EQUIPO YA REGISTRADO")
 
-                        // Pequeña pausa para que lea el error antes de permitir escanear otro
                         estaBloqueado = true
                         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                             estaBloqueado = false
                             onUIUpdate("Escaneando siguiente equipo...")
                         }, 3000)
-                        return // Cortamos la ejecución aquí, no seguimos buscando el PON
+                        return
                     }
-
-                    // Si no existe, procedemos normal
-                    macDetectada = valor}
+                    macDetectada = valor
+                }
             }
             // Filtro PON SN
             valor.matches(PON_SN_REGEX) -> {
+                // VALIDACIÓN: ¿Este Serial ya existe?
+                val yaExisteSerial = listaActual.any { it.serial?.equals(valor, ignoreCase = true) == true }
+
+                if (yaExisteSerial) {
+                    vibrar(context)
+                    macDetectada = null
+                    ponDetectada = null
+                    onUIUpdate("EQUIPO YA REGISTRADO")
+
+                    estaBloqueado = true
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        estaBloqueado = false
+                        onUIUpdate("Escaneando siguiente equipo...")
+                    }, 3000)
+                    return
+                }
                 ponDetectada = valor
             }
         }
@@ -381,36 +397,25 @@ class MainActivity : ComponentActivity() {
         val macParaEnviar = macDetectada ?: ""
         val ponParaEnviar = ponDetectada ?: ""
 
-        //onUIUpdate("⏳ Verificando último número en la nube...")
+        onUIUpdate("Enviando a Google Sheets...")
 
-        obtenerData { listaMasReciente ->
-            // Actualizamos la lista local con lo que acabamos de bajar
-            onRefreshList(listaMasReciente)
+        // OPTIMIZACIÓN: Enviamos el número vacío (""), el Script lo pondrá.
+        agregarData(
+            numero = "",
+            mac = macParaEnviar,
+            serial = ponParaEnviar
+        ) {
+            // Al terminar el envío, refrescamos el historial para ver el resultado real
+            obtenerData { newList ->
+                onRefreshList(newList)
+                onUIUpdate("¡Registro Exitoso!")
 
-            val proximoNumero = calcularSiguienteNumero(listaMasReciente)
-
-            onUIUpdate("Enviando a Google Sheets...")
-            //onUIUpdate("✅ Capturado equipo N°$proximoNumero\nEnviando a Google Sheets...")
-
-            // Lógica de envío
-            agregarData(
-                numero = proximoNumero,
-                mac = macParaEnviar,
-                serial = ponParaEnviar
-            ) {
-                obtenerData { newList ->
-                    onRefreshList(newList)
-                    //onUIUpdate("✅ ENVIADO EXITOSAMENTE\nN°: $proximoNumero\nMAC: $macParaEnviar\nPON: $ponParaEnviar")
-                    onUIUpdate("¡Registro Exitoso!")
-
-                    // Reiniciamos el escáner después de 5 segundos
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        macDetectada = null
-                        ponDetectada = null
-                        estaBloqueado = false
-                        onUIUpdate("Escaneando siguiente equipo...")
-                    }, 2500)
-                }
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    macDetectada = null
+                    ponDetectada = null
+                    estaBloqueado = false
+                    onUIUpdate("Escanea un codigo")
+                }, 2000)
             }
         }
     }

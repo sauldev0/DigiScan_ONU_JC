@@ -148,6 +148,19 @@ fun ScannerScreen(
     var inicializado by remember { mutableStateOf(false) }
     var flashEncendido by remember { mutableStateOf(false) } // Estado local del botón
 
+    val lottieRes = when {
+        scanResult.contains("REGISTRADO") -> R.raw.scanner_red
+        scanResult.contains("¡Registro Exitoso!") ||
+                (scanResult.contains("MAC OK") && scanResult.contains("PON OK")) -> R.raw.scanner_green
+        else -> R.raw.scanner_default // La animación por defecto
+    }
+
+    val colorMarco = when {
+        scanResult.contains("REGISTRADO") -> MaterialTheme.colorScheme.error // Rojo si ya existe
+        scanResult.contains("¡Registro Exitoso!") || (scanResult.contains("MAC OK") && scanResult.contains("PON OK")) -> Color(0xFF4CAF50) // Verde éxito
+        else -> Color(0xFF6666FF) // Morado por defecto
+    }
+
     LaunchedEffect(listaONU.size) {
         // 2. Si la lista tiene datos y es la primera vez, marcamos como inicializado y NO añadimos nada
         if (listaONU.isNotEmpty() && !inicializado) {
@@ -222,17 +235,17 @@ fun ScannerScreen(
 
             // 3. Guía Visual
             DotLottieAnimation(
-                source = DotLottieSource.Res(R.raw.scanner),
+                source = DotLottieSource.Res(lottieRes),
                 autoplay = true,
                 loop = true,
                 modifier = Modifier.size(280.dp).align(Alignment.Center)
             )
 
             Icon(
-                painter = painterResource(id = R.drawable.esquinas_escaner), // Reemplaza con el nombre real de tu PNG
+                painter = painterResource(id = R.drawable.esquinas_escaner),
                 contentDescription = "Marco Escáner",
                 modifier = Modifier.size(328.dp).align(Alignment.Center),
-                tint = Color(102, 102, 255)// Ajusta este valor (0.1 a 1.0) para que las esquinas encajen perfecto
+                tint = colorMarco// Ajusta este valor (0.1 a 1.0) para que las esquinas encajen perfecto
             )
 
             // 4. COLA DE CARDS (Apiladas abajo)
@@ -255,24 +268,35 @@ fun ScannerScreen(
             }
         }
 
-        // 5. Texto de estado del escáner
-        Text(
-            text = scanResult,
+        // 5. Texto de estado del escáner (Separado por colores)
+        Column(
             modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            // Lógica para cambiar el color según el contenido del mensaje
-            color = when {
-                scanResult.contains("REGISTRADO") -> MaterialTheme.colorScheme.error
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Dividimos el scanResult por el salto de línea que envías desde handleBarcode
+            val lineas = scanResult.split("\n")
 
-                scanResult.contains("¡Registro Exitoso!") -> Color(0xFF4CAF50)
+            lineas.forEach { linea ->
+                Text(
+                    text = linea,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                    fontWeight = if (linea.contains("OK") || linea.contains("Exitoso")) FontWeight.Bold else FontWeight.Normal,
+                    color = when {
+                        // Caso: Éxito total o MAC/PON detectado individualmente
+                        linea.contains("OK") || linea.contains("¡Registro Exitoso!") -> Color(0xFF4CAF50) // Verde
 
-                scanResult.contains("OK") -> Color(0xFF4CAF50)
+                        // Caso: Equipo ya registrado (Error)
+                        linea.contains("REGISTRADO") -> MaterialTheme.colorScheme.error // Rojo
 
-                // Por defecto usamos el color primario del tema
-                else -> MaterialTheme.colorScheme.primary
+                        // Caso: Aún buscando o estado inicial
+                        linea.contains("Buscando") -> Color.Gray
+
+                        else -> MaterialTheme.colorScheme.primary // Azul/Morado por defecto
+                    }
+                )
             }
-        )
+        }
     }
 }
 
